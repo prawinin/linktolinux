@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light;
+  font-family: "Cantarell", "Noto Sans", system-ui, sans-serif;
+  color: #243746;
+  background: #f3f6f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+body {
+  line-height: 1.5;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+h1,
+h2,
+h3,
+p,
+figure {
+  margin: 0;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+img,
+svg {
+  display: block;
+  vertical-align: middle;
+}
+img {
+  max-width: 100%;
+}
+::selection {
+  background: #cfe9e6;
+  color: #174f54;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #a8bac3 transparent;
+}

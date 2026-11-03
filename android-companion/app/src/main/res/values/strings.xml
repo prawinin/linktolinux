@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">LinkToLinux Companion</string>
+    <string name="connection_required">Connect to Linux first.</string>
+    <string name="clipboard_sent">Phone clipboard sent to Linux.</string>
+    <string name="remember_desktop">Remember this desktop</string>
+    <string name="automatic_clipboard_sync">Automatic clipboard sync</string>
+    <string name="clipboard_sync_enabled">Enabled while connected</string>
+    <string name="clipboard_sync_disabled">Automatic sync is off. Manual sharing is available.</string>
+    <string name="hide_details">Hide details</string>
+    <string name="connection_details">Connection details</string>
+    <string name="switch_back_camera">Switch to back</string>
+    <string name="switch_front_camera">Switch to front</string>
+    <string name="cancel_file_transfer">Cancel</string>
+    <string name="open_received_file">Open</string>
+    <plurals name="pending_file_count">
+        <item quantity="one">%d file ready to send when connected.</item>
+        <item quantity="other">%d files ready to send when connected.</item>
+    </plurals>
+    <plurals name="waiting_file_count">
+        <item quantity="one">%d file waiting for space in the transfer queue.</item>
+        <item quantity="other">%d files waiting for space in the transfer queue.</item>
+    </plurals>
+    <string name="file_transfer_progress_known">%1$s, %2$s of %3$s</string>
+    <string name="file_transfer_progress_unknown">%1$s, %2$s transferred</string>
+</resources>

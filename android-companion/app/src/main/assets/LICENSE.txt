@@ -1,0 +1,24 @@
+LinkToLinux Personal Use License
+Version 1.0
+
+Copyright (c) 2026 LinkToLinux contributors. All rights reserved.
+
+Permission is granted to individuals to download, install, compile, run and
+modify LinkToLinux solely for their own personal, non-commercial use.
+Keep this license and all copyright and third-party notices with your copies.
+
+This license does not permit commercial use, use on behalf of a business or
+organization, sale, sublicensing, or redistribution of the software, its source,
+or modified versions. These activities require prior written permission from
+the applicable copyright holders. Rights granted by the hosting platform's
+terms of service or by applicable law are not restricted by this license.
+
+This license applies only to original LinkToLinux code and assets. Third-party
+components remain subject to their own licenses, which take precedence for
+those components. See THIRD_PARTY_NOTICES.md and LICENSES/.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. TO THE EXTENT PERMITTED BY LAW, THE COPYRIGHT
+HOLDERS ARE NOT LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM
+THE SOFTWARE OR ITS USE.

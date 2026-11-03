@@ -1,0 +1,27 @@
+.files-panel { max-width: 1100px; }
+.files-heading, .files-list-heading { display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.files-heading h2 { margin:0 0 7px; font-size:19px; letter-spacing:-.3px; }
+.files-heading p, .files-dropzone p, .files-empty p { color:#64707b; font-size:13px; line-height:1.65; margin:0; max-width:62ch; }
+.files-heading > button { flex-shrink:0; }
+.files-dropzone { display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; margin:24px 0; padding:30px 24px; border:1px dashed #becdd1; border-radius:8px; background:#f9fbfb; }
+.files-dropzone.dragging { background:#e6f2f2; border-color:#176e73; }
+.files-dropzone > svg { color:#176e73; }
+.files-dropzone strong { font-size:16px; font-weight:600; }
+.files-dropzone p { margin-top:6px; }
+.files-dropzone small, .files-destination { font-size:12px; color:#64707b; line-height:1.65; }
+.files-list-heading { border-top:1px solid #e4e9ec; padding-top:16px; }
+.files-list-heading h3 { font-size:14px; margin:0; font-weight:600; }
+.files-empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px; padding:30px 24px; color:#64707b; }
+.files-empty strong { font-size:14px; color:#343f49; }
+.files-list { list-style:none; margin:0; padding:0; }
+.files-transfer { display:flex; align-items:center; gap:14px; padding:18px 0; border-bottom:1px solid #e9edef; }
+.files-direction { flex-shrink:0; color:#64707b; }
+.files-transfer.complete .files-direction { color:#176e73; }
+.files-transfer.failed .files-direction { color:#a63737; }
+.files-transfer-detail { flex:1; min-width:0; }
+.files-transfer-detail > strong { display:block; font-size:14px; font-weight:550; overflow-wrap:anywhere; }
+.files-transfer-meta { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; color:#64707b; font-size:12px; margin-top:7px; }
+.files-transfer progress { display:block; margin-top:9px; width:100%; height:6px; accent-color:#176e73; }
+.files-transfer-error { font-size:12px; color:#a63737; margin:7px 0 0; overflow-wrap:anywhere; }
+.files-destination { margin:20px 0 0; }
+@media(max-width:850px) { .files-heading { align-items:flex-start; flex-direction:column; gap:16px; } .files-dropzone { padding:24px 16px; } }

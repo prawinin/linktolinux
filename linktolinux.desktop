@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=LinkToLinux
+Comment=Connect your Android phone to Linux
+Exec=linktolinux
+Icon=dev.linktolinux.app
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=android;phone;clipboard;camera;microphone;
+StartupNotify=true
+StartupWMClass=linktolinux

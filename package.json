@@ -1,0 +1,27 @@
+{
+  "name": "linktolinux",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "test": "node tests/companion-protocol.test.mjs && node tests/release-assets.test.mjs && node tests/clipboard-policy.test.mjs && node tests/file-transfer-policy.test.mjs",
+    "preview": "vite preview",
+    "test:qr": "node tests/qr-roundtrip.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "lucide-react": "^0.553.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}
