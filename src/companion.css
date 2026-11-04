@@ -193,8 +193,8 @@
 }
 .companion-content {
   padding: 26px 30px 40px;
-  max-width: 1640px;
-  margin: auto;
+  width: 100%;
+  margin: 0;
 }
 .companion-panel {
   background: #fff;
@@ -357,11 +357,9 @@
 .companion-workspace.single-section {
   display: block;
 }
-.single-section .companion-tools {
-  max-width: 760px;
-}
+.single-section .companion-tools,
 .single-section .companion-photos {
-  max-width: 1200px;
+  width: 100%;
 }
 .companion-tools {
   display: flex;
@@ -462,6 +460,10 @@
   gap: 9px;
   margin-bottom: 17px;
 }
+.single-section .companion-preview {
+  height: clamp(220px, calc(100dvh - 480px), 680px);
+  aspect-ratio: auto;
+}
 .companion-preview > span {
   font-size: 12px;
   line-height: 1.6;
@@ -536,6 +538,9 @@
   line-height: 1.7;
   font-size: 14px;
   min-height: 120px;
+}
+.single-section #clipboard-text {
+  min-height: clamp(180px, calc(100dvh - 530px), 600px);
 }
 .companion-shell textarea::placeholder {
   color: #64707b;

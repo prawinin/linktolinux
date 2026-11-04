@@ -53,7 +53,7 @@ Install the tools needed for the features you use:
 | Camera preview | `ffmpeg` |
 | Virtual webcam | `v4l2loopback` built for your running kernel |
 | Microphone | PipeWire, PulseAudio compatibility, `pactl`, `pw-cat`, `ffmpeg` |
-| Clipboard | `wl-clipboard` on Wayland or `xclip` on X11 |
+| Clipboard | Built-in desktop clipboard access; `wl-clipboard` or `xclip` can be used as a fallback |
 | ADB tools | `adb` |
 
 For virtual webcam output, choose **Connection → Enable virtual webcam**, then restart camera sharing. Select **LinkToLinux Camera** in the receiving app. Loading the driver requires administrator authorization.
@@ -76,7 +76,7 @@ Uninstalling keeps your pairing, preferences and received files.
 - **No photos:** grant photo access on Android, then choose **Refresh photos** on Linux.
 - **Camera or microphone will not start:** open the Android app, check permissions and close other apps using the camera or microphone.
 - **Camera preview works, but other apps cannot see it:** enable the virtual webcam, check device permissions and restart camera sharing.
-- **Clipboard is not syncing:** check that sync is enabled in both apps and that the Linux clipboard tool is installed. Open the companion to send phone clipboard text.
+- **Clipboard is not syncing:** check that sync is enabled in both apps and copy some text. Empty selections and images are not sent automatically. Open the companion to send phone clipboard text.
 
 **Disconnect** pauses automatic reconnection. **Connection → Reset pairing** revokes the saved pairing and requires pairing again. Android’s **Force stop** stops the companion until you reopen it.
 

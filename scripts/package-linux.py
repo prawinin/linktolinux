@@ -93,7 +93,8 @@ Installation and removal require Python 3.10+.
 
 Camera preview uses ffmpeg. Virtual webcam output requires v4l2loopback.
 Microphone sharing uses PipeWire, pactl, pw-cat and ffmpeg. Clipboard sync
-uses wl-clipboard on Wayland or xclip on X11. ADB tools require adb.
+uses the desktop clipboard, with wl-clipboard or xclip as a fallback.
+ADB tools require adb.
 
 Start camera or microphone sharing while the Android companion is visible.
 Use its notification to send phone clipboard text while using another app.

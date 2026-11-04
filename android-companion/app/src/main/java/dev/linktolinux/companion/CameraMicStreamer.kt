@@ -11,12 +11,8 @@ import android.content.pm.ServiceInfo
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
-import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaFormat
-import android.media.MediaRecorder
 import android.os.Bundle
 import android.os.Build
 import android.os.Handler
@@ -50,6 +46,7 @@ class CameraMicStreamer : Service() {
         private set
     val videoActive: Boolean get() = running && mode != "mic"
     private var captureSize: CameraSize? = null
+    private var captureFps = 24
     private var cameraHandler: Handler? = null
     @Volatile private var cameraGeneration = 0
     private var closingCamera: CameraDevice? = null
@@ -57,7 +54,7 @@ class CameraMicStreamer : Service() {
     @Volatile private var encodedRotation = 0
     @Volatile private var awaitingKeyFrame = false
 
-    internal fun supportsCamera(option: CameraOption): Boolean = captureSize in option.sizes
+    internal fun supportsCamera(option: CameraOption): Boolean = captureSize in option.sizes && captureFps in option.frameRates
     internal fun requestKeyFrame() {
         if (!videoActive) return
         awaitingKeyFrame = true
@@ -150,14 +147,8 @@ class CameraMicStreamer : Service() {
     }
     @SuppressLint("MissingPermission")
     private fun startAudio() {
-        val bufferSize = AudioRecord.getMinBufferSize(48000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
-        check(bufferSize > 0) { "48 kHz microphone recording is unavailable" }
-        val audio = AudioRecord(MediaRecorder.AudioSource.MIC, 48000, AudioFormat.CHANNEL_IN_MONO,
-            AudioFormat.ENCODING_PCM_16BIT, maxOf(bufferSize, 8192))
+        val audio = CaptureDevices.audio("pcm-rates-v1" in CompanionConnection.serverFeatures)
         recorder = audio
-        check(audio.state == AudioRecord.STATE_INITIALIZED) { "Microphone initialization failed" }
-        audio.startRecording()
-        check(audio.recordingState == AudioRecord.RECORDSTATE_RECORDING) { "Microphone capture was denied" }
         audioReady = true
         ready()
         audioThread = Thread({
@@ -167,7 +158,7 @@ class CameraMicStreamer : Service() {
                     val count = audio.read(buffer, 0, buffer.size)
                     check(count >= 0 || !running) { "Microphone read failed: $count" }
                     if (count > 0 && !CompanionConnection.send(JSONObject().put("type", "audio")
-                            .put("codec", "pcm_s16le").put("sampleRate", 48000).put("channels", 1)
+                            .put("codec", "pcm_s16le").put("sampleRate", audio.sampleRate).put("channels", 1)
                             .put("data", Base64.encodeToString(buffer, 0, count, Base64.NO_WRAP)))) break
                 }
             } catch (error: Exception) { if (running) fail(error.message ?: "Microphone capture failed") }
@@ -177,24 +168,17 @@ class CameraMicStreamer : Service() {
     private fun startCamera() {
         val options = CameraControls.options(this)
         val selected = CameraControls.selected(this, options)
-        val size = CameraSelection.size(selected, options)
+        val configured = CaptureDevices.camera(selected, options)
+        encoder = configured.codec
+        surface = configured.surface
+        val size = configured.size
         captureSize = size
+        captureFps = configured.fps
         encodedRotation = CameraControls.rotation(this)
         CameraControls.saveLens(this, selected.frontFacing)
         cameraBusy = true
         CameraControls.changed()
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, size.width, size.height).apply {
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_BIT_RATE, 2_000_000)
-            setInteger(MediaFormat.KEY_FRAME_RATE, 24)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-        }
-        val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        encoder = codec
-        codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        val target = codec.createInputSurface()
-        surface = target
-        codec.start()
+        val codec = configured.codec
         val thread = HandlerThread("phone-camera").apply { start() }
         cameraThread = thread
         val handler = Handler(thread.looper)
@@ -223,7 +207,7 @@ class CameraMicStreamer : Service() {
                             if (keyFrame) { encodedRotation = CameraControls.rotation(this); awaitingKeyFrame = false }
                             val data = if (!isConfig && keyFrame) config + bytes else bytes
                             if (!CompanionConnection.send(JSONObject().put("type", "video").put("codec", "h264")
-                                    .put("width", size.width).put("height", size.height).put("rotation", encodedRotation)
+                                    .put("width", size.width).put("height", size.height).put("fps", configured.fps).put("rotation", encodedRotation)
                                     .put("data", Base64.encodeToString(data, Base64.NO_WRAP)))) break
                             if (!isConfig) { videoReady = true; ready() }
                         }
@@ -250,6 +234,11 @@ class CameraMicStreamer : Service() {
                             try {
                                 val request = device.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
                                     addTarget(target)
+                                    manager.getCameraCharacteristics(option.id)
+                                        .get(android.hardware.camera2.CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                                        ?.filter { it.upper == captureFps }
+                                        ?.maxByOrNull { it.lower }
+                                        ?.let { set(android.hardware.camera2.CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
                                     set(android.hardware.camera2.CaptureRequest.CONTROL_MODE, android.hardware.camera2.CaptureRequest.CONTROL_MODE_AUTO)
                                 }
                                 capture.setRepeatingRequest(request.build(), null, handler)

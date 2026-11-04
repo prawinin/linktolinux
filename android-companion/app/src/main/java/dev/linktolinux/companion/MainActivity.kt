@@ -134,7 +134,12 @@ class MainActivity : Activity() {
         backgroundPanel = ui.card("Background connection")
         backgroundPanel.addView(ui.text("Keep sharing when you switch apps or close this screen. If your phone stops LinkToLinux, set its battery use to Unrestricted or No restrictions and allow background activity in your phone settings.", 13f, muted = true))
         backgroundPanel.addView(ui.button("Background settings") {
-            try { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+            try {
+                val power = getSystemService(POWER_SERVICE) as android.os.PowerManager
+                if (!power.isIgnoringBatteryOptimizations(packageName)) {
+                    startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+                } else startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
             catch (error: android.content.ActivityNotFoundException) {
                 try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
                 catch (failure: RuntimeException) { Toast.makeText(this, "Open Android Settings, then LinkToLinux app info and battery settings.", Toast.LENGTH_LONG).show() }
@@ -214,6 +219,13 @@ class MainActivity : Activity() {
             status.text = error.message
             Toast.makeText(this, error.message, Toast.LENGTH_LONG).show()
             return
+        }
+        if (Build.VERSION.SDK_INT >= 33 && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
+            val requests = getSharedPreferences("permission_requests", Context.MODE_PRIVATE)
+            if (!requests.getBoolean(Manifest.permission.POST_NOTIFICATIONS, false)) {
+                requests.edit().putBoolean(Manifest.permission.POST_NOTIFICATIONS, true).apply()
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 102)
+            }
         }
         host.setText(endpoint.host); port.setText(endpoint.port.toString()); token.setText(endpoint.code)
         getSharedPreferences("linktolinux", Context.MODE_PRIVATE).edit().putString("host", endpoint.host).putInt("port", endpoint.port).apply()

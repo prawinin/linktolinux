@@ -8,5 +8,5 @@ export function clipboardRetryDelay(failures: number): number {
 }
 
 export function canSendClipboard(content: string, snapshot: string | null, latest: string | null): boolean {
-  return snapshot === latest && content !== latest;
+  return content.length > 0 && snapshot === latest && content !== latest;
 }

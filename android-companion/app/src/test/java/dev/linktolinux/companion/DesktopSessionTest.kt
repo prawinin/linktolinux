@@ -59,6 +59,29 @@ class DesktopSessionTest {
             } finally { executor.shutdownNow() }
         }
     }
+    @Test(timeout = 45000) fun idleConnectionSurvivesTemporaryHeartbeatSilence() {
+        ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
+            val executor = Executors.newSingleThreadExecutor()
+            try {
+                val peer = executor.submit {
+                    server.accept().use { socket ->
+                        socket.soTimeout = 2000
+                        receive(DataInputStream(socket.getInputStream()))
+                        val output = DataOutputStream(socket.getOutputStream())
+                        reply(output, JSONObject().put("type", "hello_ack").put("protocolVersion", 2))
+                        Thread.sleep(31000)
+                        reply(output, JSONObject().put("type", "request").put("command", "capture_stop"))
+                    }
+                }
+                var delivered = false
+                DesktopSession(DesktopEndpoint(server.inetAddress.hostAddress!!, server.localPort, "ABCDEF123456"), "test-phone", "Test phone").use { session ->
+                    session.run({}, { delivered = true; session.close() }, { JSONObject().put("type", "ping") })
+                }
+                peer.get(3, TimeUnit.SECONDS)
+                assertTrue(delivered)
+            } finally { executor.shutdownNow() }
+        }
+    }
     @Test(timeout = 5000) fun pairingRejectionIsSpecificAndDoesNotConnect() {
         ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
             val executor = Executors.newSingleThreadExecutor()

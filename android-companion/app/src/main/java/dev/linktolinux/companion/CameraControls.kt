@@ -9,7 +9,7 @@ import android.media.MediaCodec
 
 data class CameraControlState(val frontFacing: Boolean, val rotationDegrees: Int, val canSwitch: Boolean, val videoActive: Boolean, val busy: Boolean = false)
 internal data class CameraSize(val width: Int, val height: Int)
-internal data class CameraOption(val id: String, val frontFacing: Boolean, val sizes: Set<CameraSize>)
+internal data class CameraOption(val id: String, val frontFacing: Boolean, val sizes: Set<CameraSize>, val frameRates: Set<Int> = setOf(24, 15))
 
 internal object CameraSelection {
     fun validRotation(value: Int): Int = if (value in setOf(0, 90, 180, 270)) value else 0
@@ -37,7 +37,9 @@ object CameraControls {
             if (facing != CameraCharacteristics.LENS_FACING_BACK && facing != CameraCharacteristics.LENS_FACING_FRONT) return@mapNotNull null
             val sizes = info.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)?.getOutputSizes(MediaCodec::class.java)
                 ?.map { CameraSize(it.width, it.height) }?.toSet().orEmpty()
-            if (sizes.isEmpty()) null else CameraOption(id, facing == CameraCharacteristics.LENS_FACING_FRONT, sizes)
+            val rates = info.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                ?.map { it.upper }?.filter { it in 10..60 }?.toSet().orEmpty().ifEmpty { setOf(24, 15) }
+            if (sizes.isEmpty()) null else CameraOption(id, facing == CameraCharacteristics.LENS_FACING_FRONT, sizes, rates)
         }
     }
     internal fun selected(context: Context, cameras: List<CameraOption>): CameraOption =

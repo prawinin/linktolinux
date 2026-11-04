@@ -40,6 +40,7 @@ class DesktopSession(private val endpoint: DesktopEndpoint, private val deviceId
             socket.connect(InetSocketAddress(endpoint.host, endpoint.port), 5000)
             socket.soTimeout = 10000
             socket.tcpNoDelay = true
+            socket.keepAlive = true
             val input = DataInputStream(socket.getInputStream())
             val output = DataOutputStream(socket.getOutputStream())
             write(output, JSONObject().put("type", "hello").put("protocolVersion", 2)
@@ -52,7 +53,7 @@ class DesktopSession(private val endpoint: DesktopEndpoint, private val deviceId
             if (ack.optInt("protocolVersion", 2) != 2) throw SessionFailure(FailureKind.PROTOCOL, "Update both the Linux app and Android companion.")
             val features = ack.optJSONArray("features")
             serverFeatures = if (features == null) emptySet() else (0 until features.length()).mapNotNull { features.opt(it) as? String }.toSet()
-            socket.soTimeout = 30000
+            socket.soTimeout = 180000
             onConnected()
             writer = Thread({
                 try {
@@ -81,11 +82,18 @@ class DesktopSession(private val endpoint: DesktopEndpoint, private val deviceId
     }
     override fun close() { closed = true; socket.close() }
     private fun read(input: DataInputStream): JSONObject {
-        val length = input.readInt()
-        if (length !in 1..(32 * 1024 * 1024)) throw SessionFailure(FailureKind.PROTOCOL, "Desktop sent an invalid frame. Update both apps.")
-        val bytes = ByteArray(length)
-        input.readFully(bytes)
-        return JSONObject(String(bytes, Charsets.UTF_8))
+        val idleTimeout = socket.soTimeout
+        val first = input.read()
+        if (first < 0) throw EOFException()
+        socket.soTimeout = 30000
+        try {
+            val length = (first shl 24) or (input.readUnsignedByte() shl 16) or
+                (input.readUnsignedByte() shl 8) or input.readUnsignedByte()
+            if (length !in 1..(32 * 1024 * 1024)) throw SessionFailure(FailureKind.PROTOCOL, "Desktop sent an invalid frame. Update both apps.")
+            val bytes = ByteArray(length)
+            input.readFully(bytes)
+            return JSONObject(String(bytes, Charsets.UTF_8))
+        } finally { socket.soTimeout = idleTimeout }
     }
     private fun write(output: DataOutputStream, message: JSONObject) {
         val bytes = message.toString().toByteArray(Charsets.UTF_8)

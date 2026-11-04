@@ -624,9 +624,24 @@ pub fn start_mic_feed(
     ffmpeg: &Path,
     route: &AudioRoute,
     codec: &str,
-    mut frames: broadcast::Receiver<Arc<Vec<u8>>>,
+    frames: broadcast::Receiver<Arc<Vec<u8>>>,
     channels: u32,
 ) -> Result<MicFeed> {
+    start_mic_feed_at_rate(ffmpeg, route, codec, frames, channels, 48000)
+}
+
+pub fn start_mic_feed_at_rate(
+    ffmpeg: &Path,
+    route: &AudioRoute,
+    codec: &str,
+    mut frames: broadcast::Receiver<Arc<Vec<u8>>>,
+    channels: u32,
+    input_rate: u32,
+) -> Result<MicFeed> {
+    if !matches!(input_rate, 16000 | 32000 | 44100 | 48000) {
+        bail!("Unsupported microphone sample rate");
+    }
+    let rate_arg = input_rate.to_string();
     if !binary_available("pw-cat") {
         bail!("pw-cat is required to feed the virtual microphone");
     }
@@ -640,7 +655,7 @@ pub fn start_mic_feed(
             "-f",
             "s16le",
             "-ar",
-            "48000",
+            rate_arg.as_str(),
             "-ac",
             channel_arg.as_str(),
             "-i",
@@ -1044,13 +1059,14 @@ mod tests {
         let ffmpeg = resolve_binary("ffmpeg", "LINKTOLINUX_FFMPEG").expect("ffmpeg required");
         let route = AudioRoute::ensure().await.unwrap();
         let (tx, _) = broadcast::channel(64);
-        let feed = start_mic_feed(&ffmpeg, &route, "raw", tx.subscribe(), 1).unwrap();
+        let feed =
+            start_mic_feed_at_rate(&ffmpeg, &route, "raw", tx.subscribe(), 1, 44100).unwrap();
         let sender = tokio::spawn(async move {
             for frame in 0..500 {
-                let mut data = Vec::with_capacity(960);
-                for sample in 0..480 {
+                let mut data = Vec::with_capacity(882);
+                for sample in 0..441 {
                     let phase =
-                        ((frame * 480 + sample) as f64) * 440.0 * std::f64::consts::TAU / 48000.0;
+                        ((frame * 441 + sample) as f64) * 440.0 * std::f64::consts::TAU / 44100.0;
                     data.extend_from_slice(&((phase.sin() * 8000.0) as i16).to_le_bytes());
                 }
                 let _ = tx.send(Arc::new(data));

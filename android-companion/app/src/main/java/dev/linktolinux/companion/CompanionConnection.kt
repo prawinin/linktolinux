@@ -18,9 +18,11 @@ object CompanionConnection {
     val connected: Boolean get() = ui.phase == ConnectionPhase.CONNECTED
     val status: String get() = ui.message
     @Volatile var onStatus: ((String) -> Unit)? = null
+    @Volatile var onConnectionStatus: ((ConnectionUiState) -> Unit)? = null
     @Volatile var onRequest: ((JSONObject) -> Unit)? = null
     @Volatile private var session: DesktopSession? = null
 
+    val serverFeatures: Set<String> get() = session?.serverFeatures ?: emptySet()
     fun send(message: JSONObject): Boolean = session?.send(message) ?: false
     fun respond(id: String, result: JSONObject = JSONObject(), error: String? = null) {
         val message = JSONObject().put("type", "response").put("id", id)
@@ -30,6 +32,7 @@ object CompanionConnection {
     @Synchronized fun updateStatus(value: String, phase: ConnectionPhase = ui.phase) {
         ui = ui.copy(phase = phase, message = value)
         onStatus?.invoke(value)
+        onConnectionStatus?.invoke(ui)
     }
     @Synchronized fun captureChanged(active: Boolean) {
         ui = ui.copy(captureActive = active)
@@ -109,6 +112,29 @@ object CompanionConnection {
 
 class CompanionService : Service() {
     private var worker: Thread? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+    private fun notification(state: ConnectionUiState): android.app.Notification {
+        val open = android.app.PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), android.app.PendingIntent.FLAG_IMMUTABLE)
+        val clipboard = android.app.PendingIntent.getActivity(this, 2,
+            Intent(this, MainActivity::class.java).putExtra("send_clipboard", true)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
+        val disconnect = android.app.PendingIntent.getService(this, 3,
+            Intent(this, CompanionService::class.java).setAction(DISCONNECT), android.app.PendingIntent.FLAG_IMMUTABLE)
+        val text = if (state.phase == ConnectionPhase.CONNECTED) "Your phone is connected. ${state.message}" else state.message
+        return NotificationCompat.Builder(this, "connection")
+            .setContentTitle(if (state.phase == ConnectionPhase.CONNECTED) "Connected to desktop" else "LinkToLinux")
+            .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setSmallIcon(R.drawable.ic_notification).setContentIntent(open)
+            .setOnlyAlertOnce(true).setOngoing(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .apply {
+                if (state.phase == ConnectionPhase.CONNECTED) addAction(R.drawable.ic_notification, "Send clipboard", clipboard)
+            }
+            .addAction(R.drawable.ic_notification, "Disconnect", disconnect)
+            .build()
+    }
     private lateinit var gallery: GalleryRequests
     private var persistent = false
     @Volatile private var running = true
@@ -122,17 +148,12 @@ class CompanionService : Service() {
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(NotificationChannel("connection", "Phone connection", NotificationManager.IMPORTANCE_LOW))
         }
-        val open = android.app.PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), android.app.PendingIntent.FLAG_IMMUTABLE)
-        val syncClipboard = android.app.PendingIntent.getActivity(this, 2,
-            Intent(this, MainActivity::class.java).putExtra("send_clipboard", true)
-                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP), android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
-        val disconnect = android.app.PendingIntent.getService(this, 3,
-            Intent(this, CompanionService::class.java).setAction(DISCONNECT), android.app.PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(this, "connection")
-            .setContentTitle("LinkToLinux").setContentText("Maintaining your desktop connection")
-            .addAction(R.drawable.ic_notification, "Send clipboard", syncClipboard)
-            .addAction(R.drawable.ic_notification, "Disconnect", disconnect)
-            .setSmallIcon(R.drawable.ic_notification).setContentIntent(open).setOngoing(true).build()
+        CompanionConnection.onConnectionStatus = { state ->
+            main.post {
+                if (running) manager.notify(1001, notification(state))
+            }
+        }
+        val notification = notification(ConnectionUiState(ConnectionPhase.CONNECTING, "Connecting to desktop…"))
         try {
             val type = if (Build.VERSION.SDK_INT >= 29) android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
             androidx.core.app.ServiceCompat.startForeground(this, 1001, notification, type)
@@ -184,6 +205,8 @@ class CompanionService : Service() {
     }
     override fun onDestroy() {
         running = false
+        CompanionConnection.onConnectionStatus = null
+        main.removeCallbacksAndMessages(null)
         worker?.interrupt()
         stopService(Intent(this, CameraMicStreamer::class.java))
         gallery.close()

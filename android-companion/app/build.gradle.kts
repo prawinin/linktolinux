@@ -19,7 +19,7 @@ android {
         applicationId = "dev.linktolinux.companion"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
+        versionCode = 9
         versionName = "1.0.0"
     }
 

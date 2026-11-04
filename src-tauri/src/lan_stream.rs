@@ -18,13 +18,14 @@ use tokio::time::timeout;
 use crate::adb_scrcpy::resolve_binary;
 use crate::models::{BatteryState, DeviceView};
 use crate::virtual_media::{
-    default_loopback, start_mic_feed, start_mjpeg_preview_oriented, start_v4l2_sink_oriented,
-    AudioRoute, MicFeed, MjpegPreview, V4l2Sink, VideoOrientation,
+    default_loopback, start_mic_feed_at_rate, start_mjpeg_preview_oriented,
+    start_v4l2_sink_oriented, AudioRoute, MicFeed, MjpegPreview, V4l2Sink, VideoOrientation,
 };
 
 pub const LAN_PORT: u16 = 1718;
 const MAX_MESSAGE: usize = 32 * 1024 * 1024;
 const IO_TIMEOUT: Duration = Duration::from_secs(30);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(180);
 type Reply = Result<Value, String>;
 static LAN_DEVICES: LazyLock<RwLock<HashMap<String, DeviceView>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
@@ -72,6 +73,8 @@ struct Media {
     mode: Option<String>,
     preview: Option<MjpegPreview>,
     orientation: Option<VideoOrientation>,
+    video_fps: Option<u32>,
+    audio_rate: Option<u32>,
     sink: Option<V4l2Sink>,
     mic: Option<MicFeed>,
     route: Option<AudioRoute>,
@@ -81,6 +84,8 @@ impl Media {
     async fn stop(&mut self) {
         self.preview.take();
         self.orientation = None;
+        self.video_fps = None;
+        self.audio_rate = None;
         self.sink.take();
         self.mic.take();
         if let Some(route) = self.route.take() {
@@ -399,10 +404,17 @@ async fn read_json_limit<R: AsyncRead + Unpin>(
     reader: &mut R,
     maximum: usize,
 ) -> Result<Value, String> {
-    let len = timeout(IO_TIMEOUT, reader.read_u32())
+    // A sleeping phone may pause heartbeats; a partially sent frame still has a short deadline.
+    let first = timeout(IDLE_TIMEOUT, reader.read_u8())
         .await
-        .map_err(|_| "Phone read timed out")?
-        .map_err(|e| e.to_string())? as usize;
+        .map_err(|_| "Phone idle connection timed out")?
+        .map_err(|e| e.to_string())?;
+    let mut header = [first, 0, 0, 0];
+    timeout(IO_TIMEOUT, reader.read_exact(&mut header[1..]))
+        .await
+        .map_err(|_| "Incomplete companion frame header")?
+        .map_err(|e| e.to_string())?;
+    let len = u32::from_be_bytes(header) as usize;
     if len == 0 || len > maximum {
         return Err("Invalid companion frame length".into());
     }
@@ -527,7 +539,7 @@ async fn handle_peer(
     inner.emit_devices().await;
     let (mut reader, mut writer) = stream.into_split();
     let result = async {
-        write_json(&mut writer, &json!({"type":"hello_ack", "protocolVersion":2, "features":["files-v1"]})).await?;
+        write_json(&mut writer, &json!({"type":"hello_ack", "protocolVersion":2, "features":["files-v1","pcm-rates-v1"]})).await?;
         let read_loop = async {
             loop {
                 let message = read_json(&mut reader).await?;
@@ -574,7 +586,10 @@ async fn handle_peer(
                     }
                     "clipboard" => {
                         if let Some(text) = inner.clipboard_text(&message) {
-                            if let Err(error) = crate::clipboard::write_system_clipboard(text).await {
+                            let write = if let Some(app) = &inner.app {
+                                crate::clipboard::write_clipboard(app, text).await
+                            } else { crate::clipboard::write_system_clipboard(text).await };
+                            if let Err(error) = write {
                                 log::warn!("Cannot update Linux clipboard: {error}");
                             }
                             if let Some(app) = &inner.app { let _ = app.emit("companion:clipboard", json!({"deviceId":device,"text":text})); }
@@ -606,6 +621,41 @@ async fn handle_peer(
     inner.disconnect(&device, &generation).await;
     result
 }
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+    #[test]
+    fn pcm_rates_are_negotiated_and_untrusted_formats_rejected() {
+        for rate in [16000, 32000, 44100, 48000] {
+            assert_eq!(
+                pcm_sample_rate(&json!({"codec":"pcm_s16le","channels":1,"sampleRate":rate}))
+                    .unwrap(),
+                rate
+            );
+        }
+        for bad in [
+            json!({"codec":"pcm_s16le","channels":1,"sampleRate":0}),
+            json!({"codec":"pcm_s16le","channels":1,"sampleRate":44100.5}),
+            json!({"codec":"pcm_s16le","channels":2,"sampleRate":44100}),
+            json!({"codec":"aac","channels":1,"sampleRate":48000}),
+            json!({"codec":"pcm_s16le","channels":1,"sampleRate":"44100"}),
+        ] {
+            assert!(pcm_sample_rate(&bad).is_err());
+        }
+    }
+}
+
+fn pcm_sample_rate(message: &Value) -> Result<u32, String> {
+    if message["codec"] != "pcm_s16le" || message["channels"] != 1 {
+        return Err("Expected mono PCM audio".into());
+    }
+    message["sampleRate"]
+        .as_u64()
+        .filter(|value| matches!(value, 16000 | 32000 | 44100 | 48000))
+        .map(|value| value as u32)
+        .ok_or_else(|| "Unsupported PCM sample rate".into())
+}
+
 async fn process_media(inner: &Inner, device: &str, message: &Value) -> Result<(), String> {
     let mut media = inner.media.lock().await;
     if media.owner.as_deref() != Some(device) || media.mode.is_none() {
@@ -643,7 +693,17 @@ async fn process_media(inner: &Inner, device: &str, message: &Value) -> Result<(
             height,
             rotation,
         };
-        if media.preview.is_none() || media.orientation != Some(orientation) {
+        let fps = match message.get("fps") {
+            None => 24,
+            Some(value) => value
+                .as_u64()
+                .filter(|value| (10..=60).contains(value))
+                .ok_or("Invalid camera frame rate")? as u32,
+        };
+        if media.preview.is_none()
+            || media.orientation != Some(orientation)
+            || media.video_fps != Some(fps)
+        {
             media.preview.take();
             media.sink.take();
             media.preview = Some(
@@ -652,11 +712,12 @@ async fn process_media(inner: &Inner, device: &str, message: &Value) -> Result<(
                     "h264",
                     inner.video.subscribe(),
                     orientation,
-                    24,
+                    fps,
                 )
                 .map_err(|e| e.to_string())?,
             );
             media.orientation = Some(orientation);
+            media.video_fps = Some(fps);
             if let Some(device) = default_loopback() {
                 match start_v4l2_sink_oriented(
                     &ffmpeg,
@@ -664,7 +725,7 @@ async fn process_media(inner: &Inner, device: &str, message: &Value) -> Result<(
                     "h264",
                     inner.video.subscribe(),
                     orientation,
-                    24,
+                    fps,
                 ) {
                     Ok(sink) => media.sink = Some(sink),
                     Err(error) => {
@@ -677,17 +738,19 @@ async fn process_media(inner: &Inner, device: &str, message: &Value) -> Result<(
         }
         let _ = inner.video.send(Arc::new(data));
     } else {
-        if message["codec"] != "pcm_s16le"
-            || message["sampleRate"] != 48000
-            || message["channels"] != 1
-        {
-            return Err("Expected 48 kHz mono PCM audio".into());
+        let rate = pcm_sample_rate(message)?;
+        if data.len() % 2 != 0 {
+            return Err("Incomplete PCM audio sample".into());
+        }
+        if media.audio_rate.is_some_and(|active| active != rate) {
+            return Err("Audio sample rate changed during capture. Restart sharing.".into());
         }
         if media.mic.is_none() {
             let route = AudioRoute::ensure().await.map_err(|e| e.to_string())?;
-            match start_mic_feed(&ffmpeg, &route, "raw", inner.audio.subscribe(), 1) {
+            match start_mic_feed_at_rate(&ffmpeg, &route, "raw", inner.audio.subscribe(), 1, rate) {
                 Ok(feed) => {
                     media.mic = Some(feed);
+                    media.audio_rate = Some(rate);
                     media.route = Some(route);
                 }
                 Err(error) => {
@@ -936,20 +999,17 @@ pub fn companion_set_clipboard_sync(
 }
 
 #[tauri::command]
-pub async fn companion_read_clipboard() -> Result<String, String> {
-    crate::clipboard::read_system_clipboard()
+pub async fn companion_read_clipboard(app: tauri::AppHandle) -> Result<String, String> {
+    crate::clipboard::read_clipboard(&app)
         .await
-        .ok_or_else(|| {
-            "Cannot read the Linux clipboard. Install wl-clipboard on Wayland or xclip on X11."
-                .into()
-        })
+        .map_err(|error| error.to_string())
 }
 #[tauri::command]
-pub async fn companion_write_clipboard(text: String) -> Result<(), String> {
+pub async fn companion_write_clipboard(app: tauri::AppHandle, text: String) -> Result<(), String> {
     if text.len() > 1024 * 1024 {
         return Err("Clipboard text exceeds 1 MiB".into());
     }
-    crate::clipboard::write_system_clipboard(&text)
+    crate::clipboard::write_clipboard(&app, &text)
         .await
         .map_err(|e| e.to_string())
 }

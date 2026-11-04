@@ -17,3 +17,10 @@
 *.log
 __pycache__/
 *.pyc
+/.agents/
+/.claude/
+/.codex/
+/.serena/
+/.playwright-mcp/
+*.bak
+*.tmp

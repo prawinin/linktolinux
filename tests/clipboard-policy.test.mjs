@@ -19,6 +19,11 @@ test("temporary clipboard failures back off with a bounded delay and recover", (
   assert.deepEqual([0, 1, 2, 3, 20].map(policy.clipboardRetryDelay), [1500, 3000, 6000, 12000, 30000]);
   assert.equal(policy.clipboardRetryDelay(0), 1500);
 });
+test("empty and non-text selections do not erase the phone clipboard", () => {
+  assert.equal(policy.canSendClipboard("", null, null), false);
+  assert.equal(policy.canSendClipboard("", "phone text", "phone text"), false);
+  assert.equal(policy.canSendClipboard("new text", "old text", "old text"), true);
+});
 test("incoming phone text supersedes an in-flight Linux clipboard snapshot", () => {
   assert.equal(policy.canSendClipboard("linux", "phone", "phone"), true);
   assert.equal(policy.canSendClipboard("linux", "old", "phone"), false);
