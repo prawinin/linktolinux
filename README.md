@@ -6,15 +6,15 @@
 
 Connect your Android phone to Linux over Wi-Fi. Send files, browse photos, share your camera and microphone, and sync your clipboard.
 
-[Download for Linux](https://github.com/prawinin/linktolinux/releases/download/v1.0.0/LinkToLinux-1.0.0-linux-x86_64.run) · [Download for Android](https://github.com/prawinin/linktolinux/releases/download/v1.0.0/LinkToLinux-Companion.apk)
+[Download for Linux](https://github.com/prawinin/linktolinux/releases/download/v1.0.1/LinkToLinux-1.0.1-linux-x86_64.run) · [Download for Android](https://github.com/prawinin/linktolinux/releases/download/v1.0.1/LinkToLinux-Companion.apk)
 
 ## Get started
 
 Download the Linux installer and run it:
 
 ```sh
-chmod +x LinkToLinux-1.0.0-linux-x86_64.run
-./LinkToLinux-1.0.0-linux-x86_64.run
+chmod +x LinkToLinux-1.0.1-linux-x86_64.run
+./LinkToLinux-1.0.1-linux-x86_64.run
 ```
 
 Open **LinkToLinux** from your applications menu. The installer includes the Android companion, which you can download to your phone using the QR code in **Connection**. You can also install the APK from the link above.

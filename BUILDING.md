@@ -6,7 +6,7 @@ The desktop uses Tauri, Rust and React. The Android companion uses Kotlin and An
 
 Install Node.js 22.12+, Rust and the [Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
 
-Place the [companion APK](https://github.com/prawinin/linktolinux/releases/download/v1.0.0/LinkToLinux-Companion.apk) at `release/LinkToLinux-Companion.apk`, then run:
+Place the [companion APK](https://github.com/prawinin/linktolinux/releases/download/v1.0.1/LinkToLinux-Companion.apk) at `release/LinkToLinux-Companion.apk`, then run:
 
 ```sh
 ./scripts/build.sh
